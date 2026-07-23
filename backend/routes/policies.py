@@ -21,7 +21,7 @@ def generate_policy_number():
 @jwt_required()
 @role_required("admin", "agent")
 def create_policy():
-    json_data = request.get_json() or {}
+    json_data = request.get_json(silent=True) or {}
     try:
         data = policy_schema.load(json_data)
     except ValidationError as err:
@@ -90,7 +90,7 @@ def renew_policy(policy_id):
     reactivate the policy.
     """
     policy = Policy.query.get_or_404(policy_id)
-    json_data = request.get_json() or {}
+    json_data = request.get_json(silent=True) or {}
     extend_days = json_data.get("extend_days", 365)
 
     from datetime import timedelta
