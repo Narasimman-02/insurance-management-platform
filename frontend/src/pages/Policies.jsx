@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const STATUS_STYLES = {
   active: "text-success border-success/30 bg-success/5",
@@ -8,7 +9,7 @@ const STATUS_STYLES = {
   cancelled: "text-danger border-danger/30 bg-danger/5",
 };
 
-function PolicyCard({ policy, onRenew, onCancel }) {
+function PolicyCard({ policy, onRenew, onCancel, canManage }) {
   return (
     <div className="card relative overflow-hidden">
       <div className="p-5 flex justify-between items-start">
@@ -38,7 +39,7 @@ function PolicyCard({ policy, onRenew, onCancel }) {
         </div>
       </div>
 
-      {policy.status !== "cancelled" && (
+      {canManage && policy.status !== "cancelled" && (
         <div className="px-5 pb-5 flex gap-2">
           <button onClick={() => onRenew(policy.id)} className="btn-secondary text-sm">Renew</button>
           <button onClick={() => onCancel(policy.id)} className="btn-danger">Cancel</button>
@@ -49,6 +50,8 @@ function PolicyCard({ policy, onRenew, onCancel }) {
 }
 
 export default function Policies() {
+  const { user } = useAuth();
+  const canManage = user?.role === "admin" || user?.role === "agent";
   const [searchParams] = useSearchParams();
   const customerId = searchParams.get("customer_id") || "";
 
@@ -79,7 +82,7 @@ export default function Policies() {
 
   useEffect(() => {
     load();
-    loadCustomers();
+    if (canManage) loadCustomers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
@@ -116,12 +119,14 @@ export default function Policies() {
           <p className="label-eyebrow text-brass">Module 02</p>
           <h1 className="font-display text-3xl font-semibold mt-1">Policies</h1>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
-          {showForm ? "Cancel" : "Create policy"}
-        </button>
+        {canManage && (
+          <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
+            {showForm ? "Cancel" : "Create policy"}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {canManage && showForm && (
         <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-2 gap-4">
           {error && <p className="col-span-2 text-sm text-danger break-words">{error}</p>}
           <div>
@@ -174,7 +179,7 @@ export default function Policies() {
       ) : (
         <div className="grid grid-cols-2 gap-5">
           {policies.map((p) => (
-            <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} />
+            <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} canManage={canManage} />
           ))}
         </div>
       )}

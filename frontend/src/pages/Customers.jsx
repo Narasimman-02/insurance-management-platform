@@ -1,16 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function Customers() {
+  const { user } = useAuth();
+  const canManage = user?.role === "admin" || user?.role === "agent";
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
 
   async function load(searchTerm = "") {
+    if (!canManage) {
+      setForbidden(true);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.get("/customers", { params: { search: searchTerm } });
@@ -48,12 +57,14 @@ export default function Customers() {
           <p className="label-eyebrow text-brass">Module 01</p>
           <h1 className="font-display text-3xl font-semibold mt-1">Customers</h1>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
-          {showForm ? "Cancel" : "Register customer"}
-        </button>
+        {canManage && (
+          <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
+            {showForm ? "Cancel" : "Register customer"}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {canManage && showForm && (
         <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-2 gap-4">
           {error && <p className="col-span-2 text-sm text-danger">{error}</p>}
           <div>
@@ -82,17 +93,25 @@ export default function Customers() {
         </form>
       )}
 
-      <div className="flex gap-2 mb-4">
-        <input
-          className="input-field max-w-xs"
-          placeholder="Search by name or email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && load(search)}
-        />
-        <button onClick={() => load(search)} className="btn-secondary">Search</button>
-      </div>
+      {!forbidden && (
+        <div className="flex gap-2 mb-4">
+          <input
+            className="input-field max-w-xs"
+            placeholder="Search by name or email"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && load(search)}
+          />
+          <button onClick={() => load(search)} className="btn-secondary">Search</button>
+        </div>
+      )}
 
+      {forbidden ? (
+        <div className="card p-6 text-sm text-muted">
+          The customer directory is only available to admin and agent accounts.
+          Head to <strong>Policies</strong> to see policies tied to your account instead.
+        </div>
+      ) : (
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -125,6 +144,7 @@ export default function Customers() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
