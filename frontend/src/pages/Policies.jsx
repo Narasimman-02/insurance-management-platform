@@ -1,0 +1,183 @@
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import api from "../services/api";
+
+const STATUS_STYLES = {
+  active: "text-success border-success/30 bg-success/5",
+  expired: "text-muted border-border bg-black/5",
+  cancelled: "text-danger border-danger/30 bg-danger/5",
+};
+
+function PolicyCard({ policy, onRenew, onCancel }) {
+  return (
+    <div className="card relative overflow-hidden">
+      <div className="p-5 flex justify-between items-start">
+        <div>
+          <p className="label-eyebrow text-brass">{policy.policy_type}</p>
+          <p className="font-mono text-sm text-muted mt-1 tracking-wide">{policy.policy_number}</p>
+        </div>
+        <span className={`text-xs uppercase tracking-wide px-2 py-1 rounded-sm border ${STATUS_STYLES[policy.status]}`}>
+          {policy.status}
+        </span>
+      </div>
+
+      {/* Perforation divider — the signature element */}
+      <div className="relative h-0 border-t border-dashed border-border mx-5">
+        <div className="absolute -left-[29px] -top-2 w-4 h-4 rounded-full bg-paper" />
+        <div className="absolute -right-[29px] -top-2 w-4 h-4 rounded-full bg-paper" />
+      </div>
+
+      <div className="p-5 grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="label-eyebrow">Premium</p>
+          <p className="font-display text-lg mt-0.5">₹{Number(policy.premium_amount).toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="label-eyebrow">Term</p>
+          <p className="mt-0.5">{policy.start_date} → {policy.end_date}</p>
+        </div>
+      </div>
+
+      {policy.status !== "cancelled" && (
+        <div className="px-5 pb-5 flex gap-2">
+          <button onClick={() => onRenew(policy.id)} className="btn-secondary text-sm">Renew</button>
+          <button onClick={() => onCancel(policy.id)} className="btn-danger">Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Policies() {
+  const [searchParams] = useSearchParams();
+  const customerId = searchParams.get("customer_id") || "";
+
+  const [policies, setPolicies] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    customer_id: customerId, policy_type: "health", premium_amount: "", start_date: "", end_date: "",
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const params = customerId ? { customer_id: customerId } : {};
+      const { data } = await api.get("/policies", { params });
+      setPolicies(data.items);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadCustomers() {
+    const { data } = await api.get("/customers");
+    setCustomers(data.items);
+  }
+
+  useEffect(() => {
+    load();
+    loadCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
+
+  function update(field, value) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setError("");
+    try {
+      await api.post("/policies", { ...form, premium_amount: Number(form.premium_amount) });
+      setShowForm(false);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.errors ? JSON.stringify(err.response.data.errors) : "Could not create policy.");
+    }
+  }
+
+  async function handleRenew(id) {
+    await api.post(`/policies/${id}/renew`);
+    load();
+  }
+
+  async function handleCancel(id) {
+    await api.post(`/policies/${id}/cancel`);
+    load();
+  }
+
+  return (
+    <div>
+      <div className="flex items-end justify-between mb-8">
+        <div>
+          <p className="label-eyebrow text-brass">Module 02</p>
+          <h1 className="font-display text-3xl font-semibold mt-1">Policies</h1>
+        </div>
+        <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
+          {showForm ? "Cancel" : "Create policy"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-2 gap-4">
+          {error && <p className="col-span-2 text-sm text-danger break-words">{error}</p>}
+          <div>
+            <label className="label-eyebrow block mb-1">Customer</label>
+            <select required className="input-field" value={form.customer_id}
+              onChange={(e) => update("customer_id", e.target.value)}>
+              <option value="">Select a customer</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label-eyebrow block mb-1">Policy type</label>
+            <select className="input-field" value={form.policy_type}
+              onChange={(e) => update("policy_type", e.target.value)}>
+              <option value="life">Life</option>
+              <option value="health">Health</option>
+              <option value="vehicle">Vehicle</option>
+              <option value="home">Home</option>
+              <option value="travel">Travel</option>
+            </select>
+          </div>
+          <div>
+            <label className="label-eyebrow block mb-1">Premium amount</label>
+            <input type="number" step="0.01" required className="input-field" value={form.premium_amount}
+              onChange={(e) => update("premium_amount", e.target.value)} />
+          </div>
+          <div />
+          <div>
+            <label className="label-eyebrow block mb-1">Start date</label>
+            <input type="date" required className="input-field" value={form.start_date}
+              onChange={(e) => update("start_date", e.target.value)} />
+          </div>
+          <div>
+            <label className="label-eyebrow block mb-1">End date</label>
+            <input type="date" required className="input-field" value={form.end_date}
+              onChange={(e) => update("end_date", e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <button type="submit" className="btn-primary">Save policy</button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <p className="text-muted">Loading...</p>
+      ) : policies.length === 0 ? (
+        <p className="text-muted">No policies yet.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-5">
+          {policies.map((p) => (
+            <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
