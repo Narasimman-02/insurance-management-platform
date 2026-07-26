@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Customers from "./pages/Customers";
 import Policies from "./pages/Policies";
+import Reports from "./pages/Reports";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route path="/customers" element={<Customers />} />
             <Route path="/policies" element={<Policies />} />
+            <Route path="/reports" element={<Reports />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/customers" replace />} />

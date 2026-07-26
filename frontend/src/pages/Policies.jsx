@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import Pagination from "../components/Pagination";
 
 const STATUS_STYLES = {
   active: "text-success border-success/30 bg-success/5",
@@ -58,18 +59,27 @@ export default function Policies() {
   const [policies, setPolicies] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [form, setForm] = useState({
     customer_id: customerId, policy_type: "health", premium_amount: "", start_date: "", end_date: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  async function load(pageNum = 1, status = statusFilter) {
     setLoading(true);
     try {
-      const params = customerId ? { customer_id: customerId } : {};
+      const params = { page: pageNum, per_page: 8 };
+      if (customerId) params.customer_id = customerId;
+      if (status) params.status = status;
       const { data } = await api.get("/policies", { params });
       setPolicies(data.items);
+      setPage(data.page);
+      setPages(data.pages || 1);
+      setTotal(data.total);
     } finally {
       setLoading(false);
     }
@@ -81,10 +91,15 @@ export default function Policies() {
   }
 
   useEffect(() => {
-    load();
+    load(1, statusFilter);
     if (canManage) loadCustomers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
+
+  function handleStatusChange(value) {
+    setStatusFilter(value);
+    load(1, value);
+  }
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -96,7 +111,7 @@ export default function Policies() {
     try {
       await api.post("/policies", { ...form, premium_amount: Number(form.premium_amount) });
       setShowForm(false);
-      load();
+      load(page, statusFilter);
     } catch (err) {
       setError(err.response?.data?.errors ? JSON.stringify(err.response.data.errors) : "Could not create policy.");
     }
@@ -104,12 +119,12 @@ export default function Policies() {
 
   async function handleRenew(id) {
     await api.post(`/policies/${id}/renew`);
-    load();
+    load(page, statusFilter);
   }
 
   async function handleCancel(id) {
     await api.post(`/policies/${id}/cancel`);
-    load();
+    load(page, statusFilter);
   }
 
   return (
@@ -172,16 +187,33 @@ export default function Policies() {
         </form>
       )}
 
+      <div className="flex items-center gap-2 mb-4">
+        <label className="label-eyebrow">Filter status</label>
+        <select
+          className="input-field max-w-[10rem]"
+          value={statusFilter}
+          onChange={(e) => handleStatusChange(e.target.value)}
+        >
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
       {loading ? (
         <p className="text-muted">Loading...</p>
       ) : policies.length === 0 ? (
-        <p className="text-muted">No policies yet.</p>
+        <p className="text-muted">No policies match this filter.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-5">
-          {policies.map((p) => (
-            <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} canManage={canManage} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-5">
+            {policies.map((p) => (
+              <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} canManage={canManage} />
+            ))}
+          </div>
+          <Pagination page={page} pages={pages} total={total} onPageChange={(p) => load(p, statusFilter)} />
+        </>
       )}
     </div>
   );

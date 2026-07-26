@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import Pagination from "../components/Pagination";
 
 export default function Customers() {
   const { user } = useAuth();
@@ -13,8 +14,11 @@ export default function Customers() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  async function load(searchTerm = "") {
+  async function load(searchTerm = "", pageNum = 1) {
     if (!canManage) {
       setForbidden(true);
       setLoading(false);
@@ -22,8 +26,13 @@ export default function Customers() {
     }
     setLoading(true);
     try {
-      const { data } = await api.get("/customers", { params: { search: searchTerm } });
+      const { data } = await api.get("/customers", {
+        params: { search: searchTerm, page: pageNum, per_page: 10 },
+      });
       setCustomers(data.items);
+      setPage(data.page);
+      setPages(data.pages || 1);
+      setTotal(data.total);
     } finally {
       setLoading(false);
     }
@@ -44,7 +53,7 @@ export default function Customers() {
       await api.post("/customers", form);
       setForm({ name: "", email: "", phone: "", address: "" });
       setShowForm(false);
-      load(search);
+      load(search, page);
     } catch (err) {
       setError(err.response?.data?.error || "Could not create customer.");
     }
@@ -100,9 +109,9 @@ export default function Customers() {
             placeholder="Search by name or email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && load(search)}
+            onKeyDown={(e) => e.key === "Enter" && load(search, 1)}
           />
-          <button onClick={() => load(search)} className="btn-secondary">Search</button>
+          <button onClick={() => load(search, 1)} className="btn-secondary">Search</button>
         </div>
       )}
 
@@ -144,6 +153,9 @@ export default function Customers() {
           </tbody>
         </table>
       </div>
+      )}
+      {!forbidden && (
+        <Pagination page={page} pages={pages} total={total} onPageChange={(p) => load(search, p)} />
       )}
     </div>
   );
