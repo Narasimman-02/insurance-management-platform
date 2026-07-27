@@ -7,6 +7,7 @@ from extensions import db
 from models.customer import Customer
 from models.document import Document
 from schemas.document_schema import document_schema, document_list_schema
+from middleware.role_required import role_required
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/api/documents")
 
@@ -92,6 +93,7 @@ def download_document(document_id):
 
 @documents_bp.delete("/<int:document_id>")
 @jwt_required()
+@role_required("admin", "agent")
 def delete_document(document_id):
     document = Document.query.get_or_404(document_id)
     if os.path.exists(document.file_path):
