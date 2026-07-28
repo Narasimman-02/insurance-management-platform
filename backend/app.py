@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from werkzeug.exceptions import HTTPException
 from config import Config
 from extensions import db, migrate, jwt, bcrypt, cors
 
@@ -36,6 +37,32 @@ def create_app(config_class=Config):
     @app.get("/api/health")
     def health():
         return jsonify({"status": "ok"}), 200
+
+    # --- Global error handlers: keep every error response JSON, never Flask's
+    # default HTML error page, so the React frontend can always parse it. ---
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({"error": "resource not found"}), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify({"error": "method not allowed"}), 405
+
+    @app.errorhandler(413)
+    def payload_too_large(e):
+        return jsonify({"error": "file too large (max 10MB)"}), 413
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        return jsonify({"error": e.description or e.name}), e.code
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(e):
+        # Catch-all for anything not already handled above (e.g. a bug in a
+        # route). Never leak internal details to the client; log server-side.
+        app.logger.exception("Unhandled exception")
+        return jsonify({"error": "an unexpected error occurred"}), 500
 
     return app
 
