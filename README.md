@@ -39,13 +39,14 @@ npm run dev
    - A free PostgreSQL database (`insurance-db`)
    - A web service running `gunicorn wsgi:app`, with `SECRET_KEY` and
      `JWT_SECRET_KEY` auto-generated and `DATABASE_URL` wired to the database
-3. Render's `buildCommand` runs `flask db upgrade` automatically, so tables
-   are created on first deploy — no manual migration step needed.
+3. Render's `buildCommand` runs `python init_db.py` automatically, which
+   creates all tables on a fresh database (no migration history needed
+   for this project's scope) — no manual step required.
 4. Once deployed, copy your Render URL (e.g. `https://insurance-management-backend.onrender.com`).
 
 **No `render.yaml` support / prefer manual setup?** In the Render dashboard:
 - New Web Service → connect repo → Root Directory: `backend`
-- Build Command: `pip install -r requirements.txt && flask db upgrade`
+- Build Command: `pip install -r requirements.txt && python init_db.py`
 - Start Command: `gunicorn wsgi:app`
 - Add env vars: `SECRET_KEY`, `JWT_SECRET_KEY` (any random strings),
   `DATABASE_URL` (from a separately-created Render PostgreSQL instance),
