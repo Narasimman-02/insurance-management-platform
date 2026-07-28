@@ -13,7 +13,7 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     jwt.init_app(app)
     bcrypt.init_app(app)
-    cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
+    cors.init_app(app, resources={r"/api/*": {"origins": app.config["FRONTEND_URL"]}})
 
     # Import models so Flask-Migrate can see them
     from models import User, Customer, Policy, Claim, PremiumPayment, Document  # noqa: F401
