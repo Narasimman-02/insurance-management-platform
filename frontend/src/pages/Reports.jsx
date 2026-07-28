@@ -134,7 +134,7 @@ export default function Reports() {
         <p className="text-muted">Loading...</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             <SummaryCard label="Active policies" value={summary.active_policies} />
             <SummaryCard label="Pending claims" value={summary.pending_claims} />
             <SummaryCard label="Total customers" value={summary.total_customers} />
@@ -143,7 +143,7 @@ export default function Reports() {
             <SummaryCard label="Premium collected" value={`₹${summary.total_premium_collected.toLocaleString()}`} />
           </div>
 
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <ChartCard title="Policies by status">
               <canvas ref={policiesRef} />
             </ChartCard>

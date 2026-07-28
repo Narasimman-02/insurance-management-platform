@@ -61,7 +61,7 @@ export default function Customers() {
 
   return (
     <div>
-      <div className="flex items-end justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
         <div>
           <p className="label-eyebrow text-brass">Module 01</p>
           <h1 className="font-display text-3xl font-semibold mt-1">Customers</h1>
@@ -74,8 +74,8 @@ export default function Customers() {
       </div>
 
       {canManage && showForm && (
-        <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-2 gap-4">
-          {error && <p className="col-span-2 text-sm text-danger">{error}</p>}
+        <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {error && <p className="sm:col-span-2 text-sm text-danger">{error}</p>}
           <div>
             <label className="label-eyebrow block mb-1">Name</label>
             <input required className="input-field" value={form.name}
@@ -96,7 +96,7 @@ export default function Customers() {
             <input className="input-field" value={form.address}
               onChange={(e) => update("address", e.target.value)} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <button type="submit" className="btn-primary">Save customer</button>
           </div>
         </form>
@@ -121,8 +121,8 @@ export default function Customers() {
           Head to <strong>Policies</strong> to see policies tied to your account instead.
         </div>
       ) : (
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[500px] text-sm">
           <thead>
             <tr className="border-b border-border text-left label-eyebrow">
               <th className="px-4 py-3">Name</th>

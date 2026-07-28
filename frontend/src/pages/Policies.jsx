@@ -129,7 +129,7 @@ export default function Policies() {
 
   return (
     <div>
-      <div className="flex items-end justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
         <div>
           <p className="label-eyebrow text-brass">Module 02</p>
           <h1 className="font-display text-3xl font-semibold mt-1">Policies</h1>
@@ -142,8 +142,8 @@ export default function Policies() {
       </div>
 
       {canManage && showForm && (
-        <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-2 gap-4">
-          {error && <p className="col-span-2 text-sm text-danger break-words">{error}</p>}
+        <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {error && <p className="sm:col-span-2 text-sm text-danger break-words">{error}</p>}
           <div>
             <label className="label-eyebrow block mb-1">Customer</label>
             <select required className="input-field" value={form.customer_id}
@@ -181,7 +181,7 @@ export default function Policies() {
             <input type="date" required className="input-field" value={form.end_date}
               onChange={(e) => update("end_date", e.target.value)} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <button type="submit" className="btn-primary">Save policy</button>
           </div>
         </form>
@@ -207,7 +207,7 @@ export default function Policies() {
         <p className="text-muted">No policies match this filter.</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {policies.map((p) => (
               <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} canManage={canManage} />
             ))}
