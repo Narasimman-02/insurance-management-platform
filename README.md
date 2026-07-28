@@ -2,11 +2,20 @@
 
 Full-stack app: React + Tailwind (frontend), Flask + PostgreSQL (backend).
 
+## 🔗 Live Demo
+- **App:** https://insurance-management-platform-mocha.vercel.app
+- **API:** https://insurance-management-backend-x7ej.onrender.com/api/health
+
+> Note: the backend runs on Render's free tier, which spins down after
+> inactivity — the first request after a period of idle time may take
+> 30-60 seconds to respond while it wakes back up. Subsequent requests
+> are fast.
+
 ## Day 1 checklist
 - [x] Folder structure created (backend/, frontend/)
 - [x] Git repo initialized
-- [ ] Push to GitHub
-- [ ] Wireframes reviewed (see docs/wireframes.md)
+- [x] Push to GitHub
+- [x] Wireframes reviewed (see docs/wireframes.md)
 
 ## Backend setup
 ```
