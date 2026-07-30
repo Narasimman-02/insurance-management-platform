@@ -3,13 +3,18 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const navItems = [
-  { to: "/customers", label: "Customers" },
+  { to: "/dashboard", label: "Dashboard", roles: ["customer"] },
+  { to: "/customers", label: "Customers", roles: ["admin", "agent"] },
   { to: "/policies", label: "Policies" },
-  { to: "/reports", label: "Reports" },
+  { to: "/payments", label: "Payments" },
+  { to: "/claims", label: "Claims" },
+  { to: "/reports", label: "Reports", roles: ["admin", "agent"] },
+  { to: "/profile", label: "My Profile", roles: ["customer"] },
 ];
 
 function SidebarContent({ onNavigate }) {
   const { user, logout } = useAuth();
+  const visibleItems = navItems.filter((item) => !item.roles || item.roles.includes(user?.role));
   return (
     <>
       <div className="px-6 py-6 border-b border-white/10">
@@ -20,7 +25,7 @@ function SidebarContent({ onNavigate }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

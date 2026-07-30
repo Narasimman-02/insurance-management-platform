@@ -1,13 +1,22 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from marshmallow import ValidationError
 from extensions import db
 from models.policy import Policy
+from models.customer import Customer
 from models.claim import Claim
 from schemas.claim_schema import claim_schema, claim_list_schema
 from middleware.role_required import role_required
 
 claims_bp = Blueprint("claims", __name__, url_prefix="/api/claims")
+
+
+def _own_policy_ids(user_id):
+    """Policy IDs belonging to the customer record linked to this user."""
+    customer = Customer.query.filter_by(user_id=user_id).first()
+    if not customer:
+        return []
+    return [p.id for p in customer.policies]
 
 
 @claims_bp.post("")
@@ -27,6 +36,9 @@ def submit_claim():
     if policy.status != "active":
         return jsonify({"error": f"cannot claim against a policy with status '{policy.status}'"}), 400
 
+    if get_jwt().get("role") == "customer" and policy.id not in _own_policy_ids(get_jwt_identity()):
+        return jsonify({"error": "you can only submit claims on your own policies"}), 403
+
     claim = Claim(
         policy_id=data["policy_id"],
         claim_amount=data["claim_amount"],
@@ -44,6 +56,9 @@ def list_claims():
     """
     Claim history / queue.
     e.g. /api/claims?status=pending&policy_id=3
+
+    Customer-role accounts are automatically scoped to claims on their
+    own policies only.
     """
     status = request.args.get("status")
     policy_id = request.args.get("policy_id", type=int)
@@ -51,10 +66,17 @@ def list_claims():
     per_page = request.args.get("per_page", 10, type=int)
 
     query = Claim.query
+    if get_jwt().get("role") == "customer":
+        own_ids = _own_policy_ids(get_jwt_identity())
+        if policy_id:
+            query = query.filter(Claim.policy_id.in_([pid for pid in own_ids if pid == policy_id]))
+        else:
+            query = query.filter(Claim.policy_id.in_(own_ids or [-1]))
+    elif policy_id:
+        query = query.filter_by(policy_id=policy_id)
+
     if status:
         query = query.filter_by(status=status)
-    if policy_id:
-        query = query.filter_by(policy_id=policy_id)
 
     pagination = query.order_by(Claim.submission_date.desc()).paginate(
         page=page, per_page=per_page, error_out=False

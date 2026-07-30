@@ -3,7 +3,7 @@ from marshmallow import Schema, fields, validate
 
 class PolicySchema(Schema):
     id = fields.Int(dump_only=True)
-    customer_id = fields.Int(required=True)
+    customer_id = fields.Int(required=False, allow_none=True)
     policy_type = fields.Str(required=True, validate=validate.OneOf(
         ["life", "health", "vehicle", "home", "travel"]
     ))

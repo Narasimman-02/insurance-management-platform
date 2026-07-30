@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Pagination from "../components/Pagination";
@@ -8,9 +8,11 @@ const STATUS_STYLES = {
   active: "text-success border-success/30 bg-success/5",
   expired: "text-muted border-border bg-black/5",
   cancelled: "text-danger border-danger/30 bg-danger/5",
+  pending: "text-brass border-brass/30 bg-brass/5",
+  rejected: "text-danger border-danger/30 bg-danger/5",
 };
 
-function PolicyCard({ policy, onRenew, onCancel, canManage }) {
+function PolicyCard({ policy, onRenew, onCancel, onApprove, onReject, canManage }) {
   return (
     <div className="card relative overflow-hidden">
       <div className="p-5 flex justify-between items-start">
@@ -40,10 +42,24 @@ function PolicyCard({ policy, onRenew, onCancel, canManage }) {
         </div>
       </div>
 
-      {canManage && policy.status !== "cancelled" && (
-        <div className="px-5 pb-5 flex gap-2">
+      {canManage && policy.status === "pending" && (
+        <div className="px-5 pb-3 flex gap-2 flex-wrap">
+          <button onClick={() => onApprove(policy.id)} className="btn-secondary text-sm">Approve</button>
+          <button onClick={() => onReject(policy.id)} className="btn-danger">Reject</button>
+        </div>
+      )}
+
+      {canManage && (policy.status === "active" || policy.status === "expired") && (
+        <div className="px-5 pb-3 flex gap-2 flex-wrap">
           <button onClick={() => onRenew(policy.id)} className="btn-secondary text-sm">Renew</button>
           <button onClick={() => onCancel(policy.id)} className="btn-danger">Cancel</button>
+        </div>
+      )}
+
+      {policy.status === "active" && (
+        <div className="px-5 pb-5 flex gap-3 text-sm">
+          <Link to={`/payments?policy_id=${policy.id}`} className="text-navy underline underline-offset-2">Payments</Link>
+          <Link to={`/claims?policy_id=${policy.id}`} className="text-navy underline underline-offset-2">Claims</Link>
         </div>
       )}
     </div>
@@ -53,20 +69,23 @@ function PolicyCard({ policy, onRenew, onCancel, canManage }) {
 export default function Policies() {
   const { user } = useAuth();
   const canManage = user?.role === "admin" || user?.role === "agent";
+  const isCustomer = user?.role === "customer";
   const [searchParams] = useSearchParams();
   const customerId = searchParams.get("customer_id") || "";
+  const applyType = searchParams.get("apply") || "";
 
   const [policies, setPolicies] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!applyType);
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [form, setForm] = useState({
-    customer_id: customerId, policy_type: "health", premium_amount: "", start_date: "", end_date: "",
+    customer_id: customerId, policy_type: applyType || "health", premium_amount: "", start_date: "", end_date: "",
   });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function load(pageNum = 1, status = statusFilter) {
@@ -108,12 +127,20 @@ export default function Policies() {
   async function handleCreate(e) {
     e.preventDefault();
     setError("");
+    setSuccess("");
     try {
-      await api.post("/policies", { ...form, premium_amount: Number(form.premium_amount) });
+      // Customers apply for themselves — the backend resolves their linked
+      // customer record, so we don't send customer_id at all for that role.
+      const payload = isCustomer
+        ? { policy_type: form.policy_type, premium_amount: Number(form.premium_amount), start_date: form.start_date, end_date: form.end_date }
+        : { ...form, premium_amount: Number(form.premium_amount) };
+
+      await api.post("/policies", payload);
       setShowForm(false);
+      if (isCustomer) setSuccess("Application submitted — an agent will review it shortly.");
       load(page, statusFilter);
     } catch (err) {
-      setError(err.response?.data?.errors ? JSON.stringify(err.response.data.errors) : "Could not create policy.");
+      setError(err.response?.data?.errors ? JSON.stringify(err.response.data.errors) : err.response?.data?.error || "Could not submit.");
     }
   }
 
@@ -127,33 +154,47 @@ export default function Policies() {
     load(page, statusFilter);
   }
 
+  async function handleApprove(id) {
+    await api.post(`/policies/${id}/approve`);
+    load(page, statusFilter);
+  }
+
+  async function handleReject(id) {
+    await api.post(`/policies/${id}/reject`);
+    load(page, statusFilter);
+  }
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
         <div>
           <p className="label-eyebrow text-brass">Module 02</p>
-          <h1 className="font-display text-3xl font-semibold mt-1">Policies</h1>
+          <h1 className="font-display text-3xl font-semibold mt-1">
+            {isCustomer ? "My Policies" : "Policies"}
+          </h1>
         </div>
-        {canManage && (
-          <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
-            {showForm ? "Cancel" : "Create policy"}
-          </button>
-        )}
+        <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
+          {showForm ? "Cancel" : isCustomer ? "Apply for a policy" : "Create policy"}
+        </button>
       </div>
 
-      {canManage && showForm && (
+      {success && <p className="text-sm text-success mb-4">{success}</p>}
+
+      {showForm && (
         <form onSubmit={handleCreate} className="card p-6 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {error && <p className="sm:col-span-2 text-sm text-danger break-words">{error}</p>}
-          <div>
-            <label className="label-eyebrow block mb-1">Customer</label>
-            <select required className="input-field" value={form.customer_id}
-              onChange={(e) => update("customer_id", e.target.value)}>
-              <option value="">Select a customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-              ))}
-            </select>
-          </div>
+          {canManage && (
+            <div>
+              <label className="label-eyebrow block mb-1">Customer</label>
+              <select required className="input-field" value={form.customer_id}
+                onChange={(e) => update("customer_id", e.target.value)}>
+                <option value="">Select a customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="label-eyebrow block mb-1">Policy type</label>
             <select className="input-field" value={form.policy_type}
@@ -166,11 +207,12 @@ export default function Policies() {
             </select>
           </div>
           <div>
-            <label className="label-eyebrow block mb-1">Premium amount</label>
+            <label className="label-eyebrow block mb-1">
+              {isCustomer ? "Desired premium" : "Premium amount"}
+            </label>
             <input type="number" step="0.01" required className="input-field" value={form.premium_amount}
               onChange={(e) => update("premium_amount", e.target.value)} />
           </div>
-          <div />
           <div>
             <label className="label-eyebrow block mb-1">Start date</label>
             <input type="date" required className="input-field" value={form.start_date}
@@ -182,7 +224,9 @@ export default function Policies() {
               onChange={(e) => update("end_date", e.target.value)} />
           </div>
           <div className="sm:col-span-2">
-            <button type="submit" className="btn-primary">Save policy</button>
+            <button type="submit" className="btn-primary">
+              {isCustomer ? "Submit application" : "Save policy"}
+            </button>
           </div>
         </form>
       )}
@@ -195,21 +239,33 @@ export default function Policies() {
           onChange={(e) => handleStatusChange(e.target.value)}
         >
           <option value="">All</option>
+          <option value="pending">Pending</option>
           <option value="active">Active</option>
           <option value="expired">Expired</option>
           <option value="cancelled">Cancelled</option>
+          <option value="rejected">Rejected</option>
         </select>
       </div>
 
       {loading ? (
         <p className="text-muted">Loading...</p>
       ) : policies.length === 0 ? (
-        <p className="text-muted">No policies match this filter.</p>
+        <p className="text-muted">
+          {isCustomer ? "No policies yet — apply for one above." : "No policies match this filter."}
+        </p>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {policies.map((p) => (
-              <PolicyCard key={p.id} policy={p} onRenew={handleRenew} onCancel={handleCancel} canManage={canManage} />
+              <PolicyCard
+                key={p.id}
+                policy={p}
+                onRenew={handleRenew}
+                onCancel={handleCancel}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                canManage={canManage}
+              />
             ))}
           </div>
           <Pagination page={page} pages={pages} total={total} onPageChange={(p) => load(p, statusFilter)} />

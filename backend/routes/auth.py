@@ -3,6 +3,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token, jwt_re
 from marshmallow import ValidationError
 from extensions import db, bcrypt
 from models.user import User
+from models.customer import Customer
 from schemas.auth_schema import register_schema, login_schema
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -22,6 +23,14 @@ def register():
     pw_hash = bcrypt.generate_password_hash(data["password"]).decode("utf-8")
     user = User(name=data["name"], email=data["email"], password_hash=pw_hash, role=data["role"])
     db.session.add(user)
+    db.session.flush()  # get user.id before commit, without a second round-trip
+
+    # A self-registered customer account needs a linked Customer record so
+    # they can apply for policies, submit claims, etc. under their own name.
+    if data["role"] == "customer":
+        customer = Customer(user_id=user.id, name=data["name"], email=data["email"])
+        db.session.add(customer)
+
     db.session.commit()
 
     return jsonify(user.to_dict()), 201

@@ -15,8 +15,8 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
-      navigate("/customers");
+      const loggedInUser = await login(email, password);
+      navigate(loggedInUser.role === "customer" ? "/dashboard" : "/customers");
     } catch (err) {
       setError(err.response?.data?.error || "Login failed. Check your credentials.");
     } finally {

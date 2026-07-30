@@ -1,14 +1,23 @@
 from datetime import date
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from marshmallow import ValidationError
 from extensions import db
 from models.policy import Policy
+from models.customer import Customer
 from models.premium_payment import PremiumPayment
 from schemas.premium_payment_schema import premium_payment_schema, premium_payment_list_schema
 from middleware.role_required import role_required
 
 payments_bp = Blueprint("payments", __name__, url_prefix="/api/payments")
+
+
+def _own_policy_ids(user_id):
+    """Policy IDs belonging to the customer record linked to this user."""
+    customer = Customer.query.filter_by(user_id=user_id).first()
+    if not customer:
+        return []
+    return [p.id for p in customer.policies]
 
 
 @payments_bp.post("")
@@ -28,8 +37,12 @@ def record_payment():
     if "policy_id" not in data or "amount" not in data:
         return jsonify({"error": "policy_id and amount are required"}), 400
 
-    if not Policy.query.get(data["policy_id"]):
+    policy = Policy.query.get(data["policy_id"])
+    if not policy:
         return jsonify({"error": "policy not found"}), 404
+
+    if get_jwt().get("role") == "customer" and policy.id not in _own_policy_ids(get_jwt_identity()):
+        return jsonify({"error": "you can only record payments on your own policies"}), 403
 
     payment = PremiumPayment(
         policy_id=data["policy_id"],
@@ -85,6 +98,9 @@ def list_payments():
     """
     Payment history / status list.
     e.g. /api/payments?policy_id=3&status=due
+
+    Customer-role accounts are automatically scoped to payments on their
+    own policies only.
     """
     policy_id = request.args.get("policy_id", type=int)
     status = request.args.get("status")
@@ -92,8 +108,16 @@ def list_payments():
     per_page = request.args.get("per_page", 10, type=int)
 
     query = PremiumPayment.query
-    if policy_id:
+    if get_jwt().get("role") == "customer":
+        own_ids = _own_policy_ids(get_jwt_identity())
+        if policy_id:
+            # if they asked for a specific policy, only honor it if it's theirs
+            query = query.filter(PremiumPayment.policy_id.in_([pid for pid in own_ids if pid == policy_id]))
+        else:
+            query = query.filter(PremiumPayment.policy_id.in_(own_ids or [-1]))
+    elif policy_id:
         query = query.filter_by(policy_id=policy_id)
+
     if status:
         query = query.filter_by(payment_status=status)
 
@@ -113,6 +137,10 @@ def list_payments():
 def pay_due_payment(payment_id):
     """Mark a pending ('due'/'overdue') payment as paid today."""
     payment = PremiumPayment.query.get_or_404(payment_id)
+
+    if get_jwt().get("role") == "customer" and payment.policy_id not in _own_policy_ids(get_jwt_identity()):
+        return jsonify({"error": "you can only pay your own policy's premiums"}), 403
+
     payment.payment_status = "paid"
     payment.payment_date = date.today()
     db.session.commit()

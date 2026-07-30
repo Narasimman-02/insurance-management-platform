@@ -1,11 +1,12 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from marshmallow import ValidationError
 from extensions import db
 from models.customer import Customer
 from models.policy import Policy
+from models.user import User
 from schemas.policy_schema import policy_schema, policy_list_schema
 from middleware.role_required import role_required
 
@@ -17,10 +18,33 @@ def generate_policy_number():
     return f"POL-{uuid.uuid4().hex[:8].upper()}"
 
 
+POLICY_CATALOG = [
+    {"type": "life", "label": "Life Insurance", "description": "Financial protection for your family in case of the unexpected."},
+    {"type": "health", "label": "Health Insurance", "description": "Covers hospitalization and medical expenses."},
+    {"type": "vehicle", "label": "Vehicle Insurance", "description": "Protects your car or bike against accidents and damage."},
+    {"type": "home", "label": "Home Insurance", "description": "Covers your home and belongings against loss or damage."},
+    {"type": "travel", "label": "Travel Insurance", "description": "Coverage for trip cancellations, medical emergencies, and lost baggage."},
+]
+
+
+@policies_bp.get("/catalog")
+@jwt_required()
+def policy_catalog():
+    """The types of policies offered — powers the customer dashboard."""
+    return jsonify(POLICY_CATALOG), 200
+
+
 @policies_bp.post("")
 @jwt_required()
-@role_required("admin", "agent")
 def create_policy():
+    """
+    Admin/agent: creates a policy that's immediately active (existing behavior).
+    Customer: submits a policy APPLICATION — status starts as 'pending' and
+    an admin/agent must approve or reject it (see /approve, /reject below).
+    """
+    claims = get_jwt()
+    role = claims.get("role")
+
     json_data = request.get_json(silent=True) or {}
     try:
         data = policy_schema.load(json_data)
@@ -30,17 +54,31 @@ def create_policy():
     if data["end_date"] <= data["start_date"]:
         return jsonify({"errors": {"end_date": ["must be after start_date"]}}), 400
 
-    if not Customer.query.get(data["customer_id"]):
-        return jsonify({"error": "customer not found"}), 404
+    if role == "customer":
+        # Customers apply for themselves — resolve their own Customer record,
+        # ignoring any customer_id they might have sent, so they can't apply
+        # a policy onto someone else's account.
+        user_id = get_jwt_identity()
+        customer = Customer.query.filter_by(user_id=user_id).first()
+        if not customer:
+            return jsonify({"error": "no customer profile linked to this account — contact support"}), 400
+        status = "pending"
+    else:
+        if not data.get("customer_id"):
+            return jsonify({"errors": {"customer_id": ["required"]}}), 400
+        if not Customer.query.get(data["customer_id"]):
+            return jsonify({"error": "customer not found"}), 404
+        customer = None  # use data["customer_id"] directly below
+        status = "active" if data["end_date"] >= date.today() else "expired"
 
     policy = Policy(
-        customer_id=data["customer_id"],
+        customer_id=customer.id if customer else data["customer_id"],
         policy_type=data["policy_type"],
         policy_number=generate_policy_number(),
         premium_amount=data["premium_amount"],
         start_date=data["start_date"],
         end_date=data["end_date"],
-        status="active" if data["end_date"] >= date.today() else "expired",
+        status=status,
     )
     db.session.add(policy)
     db.session.commit()
@@ -53,17 +91,26 @@ def list_policies():
     """
     Filter by status and/or customer_id.
     e.g. /api/policies?status=active&customer_id=3
+
+    Customer-role accounts are automatically scoped to their own policies
+    only, regardless of what customer_id they pass (or don't pass).
     """
+    claims = get_jwt()
     status = request.args.get("status")
     customer_id = request.args.get("customer_id", type=int)
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
 
     query = Policy.query
+    if claims.get("role") == "customer":
+        user_id = get_jwt_identity()
+        own_customer = Customer.query.filter_by(user_id=user_id).first()
+        query = query.filter_by(customer_id=own_customer.id if own_customer else -1)
+    elif customer_id:
+        query = query.filter_by(customer_id=customer_id)
+
     if status:
         query = query.filter_by(status=status)
-    if customer_id:
-        query = query.filter_by(customer_id=customer_id)
 
     pagination = query.order_by(Policy.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     return jsonify({
@@ -108,6 +155,32 @@ def renew_policy(policy_id):
 def cancel_policy(policy_id):
     policy = Policy.query.get_or_404(policy_id)
     policy.status = "cancelled"
+    db.session.commit()
+    return jsonify(policy_schema.dump(policy)), 200
+
+
+@policies_bp.post("/<int:policy_id>/approve")
+@jwt_required()
+@role_required("admin", "agent")
+def approve_policy(policy_id):
+    """Approve a customer's pending policy application, activating it."""
+    policy = Policy.query.get_or_404(policy_id)
+    if policy.status != "pending":
+        return jsonify({"error": f"cannot approve a policy with status '{policy.status}'"}), 400
+    policy.status = "active"
+    db.session.commit()
+    return jsonify(policy_schema.dump(policy)), 200
+
+
+@policies_bp.post("/<int:policy_id>/reject")
+@jwt_required()
+@role_required("admin", "agent")
+def reject_policy(policy_id):
+    """Reject a customer's pending policy application."""
+    policy = Policy.query.get_or_404(policy_id)
+    if policy.status != "pending":
+        return jsonify({"error": f"cannot reject a policy with status '{policy.status}'"}), 400
+    policy.status = "rejected"
     db.session.commit()
     return jsonify(policy_schema.dump(policy)), 200
 

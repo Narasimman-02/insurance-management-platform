@@ -9,6 +9,40 @@ from middleware.role_required import role_required
 customers_bp = Blueprint("customers", __name__, url_prefix="/api/customers")
 
 
+@customers_bp.get("/me")
+@jwt_required()
+def get_my_profile():
+    """A customer-role account's own linked Customer record."""
+    from flask_jwt_extended import get_jwt_identity
+    user_id = get_jwt_identity()
+    customer = Customer.query.filter_by(user_id=user_id).first()
+    if not customer:
+        return jsonify({"error": "no customer profile linked to this account"}), 404
+    return jsonify(customer_schema.dump(customer)), 200
+
+
+@customers_bp.put("/me")
+@jwt_required()
+def update_my_profile():
+    """Let a customer-role account fill in/update their own details."""
+    from flask_jwt_extended import get_jwt_identity
+    user_id = get_jwt_identity()
+    customer = Customer.query.filter_by(user_id=user_id).first()
+    if not customer:
+        return jsonify({"error": "no customer profile linked to this account"}), 404
+
+    json_data = request.get_json(silent=True) or {}
+    try:
+        data = customer_schema.load(json_data, partial=True)
+    except ValidationError as err:
+        return jsonify({"errors": err.messages}), 400
+
+    for key, value in data.items():
+        setattr(customer, key, value)
+    db.session.commit()
+    return jsonify(customer_schema.dump(customer)), 200
+
+
 @customers_bp.post("")
 @jwt_required()
 @role_required("admin", "agent")

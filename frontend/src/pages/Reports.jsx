@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const NAVY = "#1F3A5F";
 const BRASS = "#B8863B";
@@ -35,6 +36,8 @@ function ChartCard({ title, children }) {
 }
 
 export default function Reports() {
+  const { user } = useAuth();
+  const canView = user?.role === "admin" || user?.role === "agent";
   const [summary, setSummary] = useState(null);
   const [policiesByStatus, setPoliciesByStatus] = useState([]);
   const [claimsByStatus, setClaimsByStatus] = useState([]);
@@ -48,6 +51,10 @@ export default function Reports() {
   const growthRef = useRef(null);
 
   useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     async function load() {
       setLoading(true);
       const [s, p, c, pc, cg] = await Promise.all([
@@ -65,7 +72,8 @@ export default function Reports() {
       setLoading(false);
     }
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canView]);
 
   useChart(
     policiesRef,
@@ -130,7 +138,11 @@ export default function Reports() {
         <h1 className="font-display text-3xl font-semibold mt-1">Reports Dashboard</h1>
       </div>
 
-      {loading || !summary ? (
+      {!canView ? (
+        <div className="card p-6 text-sm text-muted">
+          The reports dashboard is only available to admin and agent accounts.
+        </div>
+      ) : loading || !summary ? (
         <p className="text-muted">Loading...</p>
       ) : (
         <>

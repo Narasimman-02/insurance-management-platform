@@ -142,9 +142,12 @@ export default function Customers() {
                   <td className="px-4 py-3 font-medium">{c.name}</td>
                   <td className="px-4 py-3 text-muted">{c.email}</td>
                   <td className="px-4 py-3 text-muted font-mono text-xs">{c.phone || "—"}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Link to={`/policies?customer_id=${c.id}`} className="text-navy text-sm underline underline-offset-2">
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <Link to={`/policies?customer_id=${c.id}`} className="text-navy text-sm underline underline-offset-2 mr-3">
                       View policies
+                    </Link>
+                    <Link to={`/documents?customer_id=${c.id}`} className="text-navy text-sm underline underline-offset-2">
+                      Documents
                     </Link>
                   </td>
                 </tr>
