@@ -83,13 +83,3 @@ every redeploy or restart. This is fine for demoing the feature, but not
 for real persistence. A production fix would swap local file storage for
 a service like AWS S3 or Cloudinary — noted here as a natural "bonus
 feature" extension, not implemented in this project.
-
-## Important — updating from a new zip
-When Claude shares an updated zip, **do NOT extract it directly into or over
-`C:\insurance-management-platform`** — the zip includes a `.git` folder that
-will silently overwrite your local git history and disconnect your GitHub
-remote (this happened repeatedly during Days 7-9).
-
-Instead: extract the zip to a *different* folder (e.g. `C:\Downloads\ims-update\`),
-then manually copy only the new/changed files Claude lists into your real
-project folder.
