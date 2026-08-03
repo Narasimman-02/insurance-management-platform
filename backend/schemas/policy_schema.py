@@ -13,6 +13,9 @@ class PolicySchema(Schema):
     start_date = fields.Date(required=True)
     end_date = fields.Date(required=True)
     status = fields.Str(dump_only=True)
+    cancelled_reason = fields.Str(dump_only=True)
+    cancelled_by_role = fields.Str(dump_only=True)
+    cancelled_at = fields.DateTime(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
 

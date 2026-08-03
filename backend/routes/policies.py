@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from marshmallow import ValidationError
@@ -58,7 +58,7 @@ def create_policy():
         # Customers apply for themselves — resolve their own Customer record,
         # ignoring any customer_id they might have sent, so they can't apply
         # a policy onto someone else's account.
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         customer = Customer.query.filter_by(user_id=user_id).first()
         if not customer:
             return jsonify({"error": "no customer profile linked to this account — contact support"}), 400
@@ -103,7 +103,7 @@ def list_policies():
 
     query = Policy.query
     if claims.get("role") == "customer":
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         own_customer = Customer.query.filter_by(user_id=user_id).first()
         query = query.filter_by(customer_id=own_customer.id if own_customer else -1)
     elif customer_id:
@@ -151,10 +151,38 @@ def renew_policy(policy_id):
 
 @policies_bp.post("/<int:policy_id>/cancel")
 @jwt_required()
-@role_required("admin", "agent")
 def cancel_policy(policy_id):
+    """
+    Cancel a policy with a reason.
+    - Customers may cancel their OWN policy (must own it).
+    - Admin/agent may cancel any policy.
+    A reason is required either way, and a policy that is already
+    cancelled/rejected/pending cannot be cancelled again.
+    """
     policy = Policy.query.get_or_404(policy_id)
+    claims = get_jwt()
+    role = claims.get("role")
+
+    if role == "customer":
+        user_id = int(get_jwt_identity())
+        own_customer = Customer.query.filter_by(user_id=user_id).first()
+        if not own_customer or policy.customer_id != own_customer.id:
+            return jsonify({"error": "you can only cancel your own policies"}), 403
+    elif role not in ("admin", "agent"):
+        return jsonify({"error": "insufficient permissions"}), 403
+
+    if policy.status not in ("active", "expired"):
+        return jsonify({"error": f"cannot cancel a policy with status '{policy.status}'"}), 400
+
+    json_data = request.get_json(silent=True) or {}
+    reason = (json_data.get("reason") or "").strip()
+    if not reason:
+        return jsonify({"error": "a cancellation reason is required"}), 400
+
     policy.status = "cancelled"
+    policy.cancelled_reason = reason
+    policy.cancelled_by_role = role
+    policy.cancelled_at = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify(policy_schema.dump(policy)), 200
 

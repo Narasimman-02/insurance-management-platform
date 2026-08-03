@@ -13,7 +13,7 @@ claims_bp = Blueprint("claims", __name__, url_prefix="/api/claims")
 
 def _own_policy_ids(user_id):
     """Policy IDs belonging to the customer record linked to this user."""
-    customer = Customer.query.filter_by(user_id=user_id).first()
+    customer = Customer.query.filter_by(user_id=int(user_id)).first()
     if not customer:
         return []
     return [p.id for p in customer.policies]

@@ -13,6 +13,9 @@ class Policy(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="active")  # active | expired | cancelled
+    cancelled_reason = db.Column(db.Text, nullable=True)
+    cancelled_by_role = db.Column(db.String(20), nullable=True)  # "customer" or "admin"/"agent"
+    cancelled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     claims = db.relationship("Claim", backref="policy", cascade="all, delete-orphan")
@@ -28,4 +31,7 @@ class Policy(db.Model):
             "start_date": self.start_date.isoformat(),
             "end_date": self.end_date.isoformat(),
             "status": self.status,
+            "cancelled_reason": self.cancelled_reason,
+            "cancelled_by_role": self.cancelled_by_role,
+            "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
         }

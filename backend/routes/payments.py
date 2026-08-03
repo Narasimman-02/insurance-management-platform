@@ -14,7 +14,7 @@ payments_bp = Blueprint("payments", __name__, url_prefix="/api/payments")
 
 def _own_policy_ids(user_id):
     """Policy IDs belonging to the customer record linked to this user."""
-    customer = Customer.query.filter_by(user_id=user_id).first()
+    customer = Customer.query.filter_by(user_id=int(user_id)).first()
     if not customer:
         return []
     return [p.id for p in customer.policies]
@@ -69,6 +69,11 @@ def schedule_due_payment():
 
     if not policy_id or not amount:
         return jsonify({"error": "policy_id and amount are required"}), 400
+
+    try:
+        policy_id = int(policy_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "policy_id must be a valid policy ID number"}), 400
 
     policy = Policy.query.get(policy_id)
     if not policy:
